@@ -9,7 +9,8 @@ static void free_argv(char **argv) {
     free(argv);
 }
 
-int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncmds) {
+
+int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncmds, int background, const char *cmdline_for_job) {
     if (ncmds <= 0) return -1;
     if (ncmds == 1) {
         char **argv = cmds_argv[0];
@@ -34,8 +35,13 @@ int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncm
             execvp(argv[0], argv);
             perror("execvp"); exit(1);
         } else {
-            int status; waitpid(pid, &status, 0);
-            return 0;
+            if (background) {
+                add_job(pid, cmdline_for_job ? cmdline_for_job : argv[0]);
+                return 0;
+            } else {
+                int status; waitpid(pid, &status, 0);
+                return 0;
+            }
         }
     }
 
@@ -45,12 +51,13 @@ int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncm
         if (pipe(pipes[i]) == -1) { perror("pipe"); return -1; }
     }
 
+    pid_t first_child_pid = 0;
+
     for (int i = 0; i < ncmds; ++i) {
         pid_t pid = fork();
         if (pid == -1) { perror("fork"); return -1; }
         if (pid == 0) {
             /* child i */
-            /* if not first, set stdin from previous pipe read end */
             if (i > 0) {
                 dup2(pipes[i-1][0], STDIN_FILENO);
             } else if (infiles && infiles[i]) {
@@ -59,7 +66,6 @@ int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncm
                 dup2(fd, STDIN_FILENO); close(fd);
             }
 
-            /* if not last, set stdout to this pipe write end */
             if (i < ncmds - 1) {
                 dup2(pipes[i][1], STDOUT_FILENO);
             } else if (outfiles && outfiles[i]) {
@@ -73,23 +79,30 @@ int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncm
                 close(pipes[j][0]); close(pipes[j][1]);
             }
 
-            /* exec */
             char **argv = cmds_argv[i];
             if (!argv || !argv[0]) exit(0);
             execvp(argv[0], argv);
             perror("execvp"); exit(1);
         }
-        /* parent continues to spawn other children */
+        /* parent */
+        if (i == 0) first_child_pid = pid;
+        /* continue to spawn next child */
     }
 
     /* Parent: close all pipe fds */
     for (int i = 0; i < ncmds-1; ++i) { close(pipes[i][0]); close(pipes[i][1]); }
 
-    /* Wait for all children */
-    for (int i = 0; i < ncmds; ++i) {
-        int status;
-        wait(&status);
+    if (background) {
+        /* Add a single job record using first child's pid as job id */
+        add_job(first_child_pid, cmdline_for_job ? cmdline_for_job : "(pipeline)");
+        /* do not wait */
+        return 0;
+    } else {
+        /* Wait for all children */
+        for (int i = 0; i < ncmds; ++i) {
+            int status;
+            wait(&status);
+        }
+        return 0;
     }
-
-    return 0;
 }

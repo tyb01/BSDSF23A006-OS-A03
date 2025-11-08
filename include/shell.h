@@ -23,8 +23,14 @@ int handle_builtin(char **arglist);
 /* Readline */
 void init_readline(void);
 
-/* Execution: pipeline-aware */
-int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncmds);
+int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncmds, int background, const char *cmdline_for_job);
+
+/* Jobs API (background job manager) */
+void init_jobs_table(void);
+void add_job(pid_t pid, const char *cmdline);
+void remove_job(pid_t pid);
+void print_jobs(void);
+void reap_background_jobs(void);
 
 /* history config */
 #define HISTORY_SIZE 50
