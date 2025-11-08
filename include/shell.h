@@ -8,22 +8,25 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #define MAX_LEN 512
 #define MAXARGS 10
 #define ARGLEN 30
 #define PROMPT "FCIT> "
 
-// Function prototypes
+/* Basic APIs */
 char* read_cmd(char* prompt, FILE* fp);
 char** tokenize(char* cmdline);
-int execute(char** arglist);
 int handle_builtin(char **arglist);
 
-/* Readline init (Feature-4) */
+/* Readline */
 void init_readline(void);
 
-// history config
+/* Execution: pipeline-aware */
+int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncmds);
+
+/* history config */
 #define HISTORY_SIZE 50
 
 /* history API */
