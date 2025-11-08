@@ -5,17 +5,31 @@ int main() {
     char** arglist;
 
     while ((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
-        if ((arglist = tokenize(cmdline)) != NULL) {
-            execute(arglist);
+	    if ((arglist = tokenize(cmdline)) != NULL) {
 
-            // Free the memory allocated by tokenize()
-            for (int i = 0; arglist[i] != NULL; i++) {
-                free(arglist[i]);
-            }
-            free(arglist);
-        }
-        free(cmdline);
-    }
+
+		if (handle_builtin(arglist)) {
+
+		    for (int i = 0; arglist[i] != NULL; i++) {
+		        free(arglist[i]);
+		    }
+		    free(arglist);
+		    free(cmdline);
+		    continue;
+		}
+
+
+		execute(arglist);
+
+
+		for (int i = 0; arglist[i] != NULL; i++) {
+		    free(arglist[i]);
+		}
+		free(arglist);
+	    }
+	    free(cmdline);
+	}
+
 
     printf("\nShell exited.\n");
     return 0;
