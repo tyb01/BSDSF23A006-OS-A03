@@ -1,13 +1,14 @@
-
+# Compiler and flags
 CC       := gcc
 CFLAGS   := -Wall -Wextra -g -Iinclude
 LDFLAGS  := 
 
+# Directories
 SRC_DIR  := src
 OBJ_DIR  := build
 BIN_DIR  := bin
 
-
+# Target binary
 TARGET   := $(BIN_DIR)/myshell
 
 # Source and object files
