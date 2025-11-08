@@ -20,6 +20,9 @@ char** tokenize(char* cmdline);
 int execute(char** arglist);
 int handle_builtin(char **arglist);
 
+/* Readline init (Feature-4) */
+void init_readline(void);
+
 // history config
 #define HISTORY_SIZE 50
 
@@ -29,6 +32,5 @@ void free_history(void);
 void add_history_cmd(const char *cmd);
 void print_history(void);
 char *get_history_cmd_by_number(int n);
-
 
 #endif // SHELL_H
