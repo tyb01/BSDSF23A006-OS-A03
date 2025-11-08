@@ -9,7 +9,6 @@ static void free_argv(char **argv) {
     free(argv);
 }
 
-
 int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncmds, int background, const char *cmdline_for_job) {
     if (ncmds <= 0) return -1;
     if (ncmds == 1) {
@@ -39,8 +38,10 @@ int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncm
                 add_job(pid, cmdline_for_job ? cmdline_for_job : argv[0]);
                 return 0;
             } else {
-                int status; waitpid(pid, &status, 0);
-                return 0;
+                int status;
+                if (waitpid(pid, &status, 0) == -1) { perror("waitpid"); return -1; }
+                if (WIFEXITED(status)) return WEXITSTATUS(status);
+                return -1;
             }
         }
     }
@@ -51,7 +52,8 @@ int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncm
         if (pipe(pipes[i]) == -1) { perror("pipe"); return -1; }
     }
 
-    pid_t first_child_pid = 0;
+    pid_t last_child_pid = 0;
+    pid_t pids[ncmds];
 
     for (int i = 0; i < ncmds; ++i) {
         pid_t pid = fork();
@@ -85,24 +87,29 @@ int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncm
             perror("execvp"); exit(1);
         }
         /* parent */
-        if (i == 0) first_child_pid = pid;
-        /* continue to spawn next child */
+        pids[i] = pid;
+        last_child_pid = pid;
     }
 
     /* Parent: close all pipe fds */
     for (int i = 0; i < ncmds-1; ++i) { close(pipes[i][0]); close(pipes[i][1]); }
 
     if (background) {
-        /* Add a single job record using first child's pid as job id */
-        add_job(first_child_pid, cmdline_for_job ? cmdline_for_job : "(pipeline)");
-        /* do not wait */
+        /* Add a single job record using first child's pid as job id (pids[0]) */
+        add_job(pids[0], cmdline_for_job ? cmdline_for_job : "(pipeline)");
         return 0;
     } else {
-        /* Wait for all children */
+        int status;
+        int last_status = -1;
+        /* wait for all children, capture status of last_child_pid */
         for (int i = 0; i < ncmds; ++i) {
-            int status;
-            wait(&status);
+            pid_t wpid = wait(&status);
+            if (wpid == -1) { perror("wait"); return -1; }
+            if (wpid == last_child_pid) {
+                if (WIFEXITED(status)) last_status = WEXITSTATUS(status);
+                else last_status = -1;
+            }
         }
-        return 0;
+        return last_status >= 0 ? last_status : -1;
     }
 }
