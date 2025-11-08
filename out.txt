@@ -1,0 +1,8 @@
+total 24
+drwxrwxr-x 2 kali kali 4096 Nov  8 14:34 bin
+drwxrwxr-x 2 kali kali 4096 Nov  8 14:34 build
+drwxrwxr-x 2 kali kali 4096 Nov  8 14:29 include
+-rw-rw-r-- 1 kali kali 1001 Nov  8 14:22 Makefile
+-rw-r--r-- 1 kali kali    0 Nov  8 14:34 out.txt
+-rw-rw-r-- 1 kali kali   20 Nov  7 01:34 README.md
+drwxrwxr-x 2 kali kali 4096 Nov  8 14:33 src
