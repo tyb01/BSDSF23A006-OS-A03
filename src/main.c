@@ -2,15 +2,47 @@
 #include <readline/history.h>
 #include <ctype.h>
 
-
+/* forward parse_segments() declared inside shell.c; declare here */
 int parse_segments(const char *cmdline,
                    char ****cmds_argv_out,
                    char ***infiles_out,
                    char ***outfiles_out);
 
+/* forward handle_if_block from previous implementation */
+static void handle_if_block(char *first_line);
+
+
+static int detect_assignment(const char *s, char **name_out, char **value_out) {
+    const char *eq = strchr(s, '=');
+    if (!eq) return 0;
+    /* ensure no spaces between start and eq (i.e., first token contains '=') */
+    const char *p = s;
+    while (p < eq) {
+        if (isspace((unsigned char)*p)) return 0;
+        p++;
+    }
+    /* name must be non-empty */
+    int namelen = eq - s;
+    if (namelen <= 0) return 0;
+
+    char *name = strndup(s, namelen);
+    char *val = strdup(eq + 1);
+
+    /* trim surrounding quotes on value if present "..." or '...' */
+    size_t L = strlen(val);
+    if (L >= 2 && ((val[0] == '"' && val[L-1] == '"') || (val[0] == '\'' && val[L-1] == '\''))) {
+        char *tmp = strndup(val + 1, L - 2);
+        free(val);
+        val = tmp;
+    }
+
+    *name_out = name;
+    *value_out = val;
+    return 1;
+}
 
 static void handle_if_block(char *first_line) {
-
+    /* first_line begins with "if" (possibly followed by condition) */
     char *cond = NULL;
     char *p = first_line;
 
@@ -56,8 +88,7 @@ static void handle_if_block(char *first_line) {
     /* Now we need to read until we find a 'then' line (if not already consumed) */
     int saw_then = 0;
     if (cond) {
-        /* If initial first_line included 'then' we already handled; else check next lines for 'then' */
-        /* If cond contains trailing 'then' already removed above. So now read lines until 'then' */
+
         while (!saw_then) {
             char *ln = read_cmd("> ", stdin);
             if (!ln) { free(cond); return; }
@@ -155,8 +186,6 @@ static void handle_if_block(char *first_line) {
     free(then_lines);
     free(else_lines);
 }
-
-/* main loop (merges chaining, background handling, and if blocks) */
 int main(void) {
     char *cmdline;
     init_history();
@@ -181,14 +210,24 @@ int main(void) {
             if (*s == '\0') { segment = strtok_r(NULL, ";", &saveptr); continue; }
 
             /* If this is an 'if' block start, handle the entire structure */
-            /* detect leading 'if' token (very simple) */
             char tmp[MAX_LEN];
             strncpy(tmp, s, MAX_LEN-1); tmp[MAX_LEN-1]='\0';
             char *tok = tmp;
             while (*tok && isspace((unsigned char)*tok)) tok++;
             if (strncmp(tok, "if", 2) == 0 && (tok[2] == ' ' || tok[2] == '\0' || tok[2] == '\t')) {
-                /* handle multiline if-then-else-fi; pass the original segment string */
                 handle_if_block(s);
+                segment = strtok_r(NULL, ";", &saveptr);
+                continue;
+            }
+
+            /* Assignment detection (VARNAME=value) */
+            char *aname = NULL, *aval = NULL;
+            if (detect_assignment(s, &aname, &aval)) {
+                set_var(aname, aval);
+                /* optional: add to history */
+                add_history_cmd(s);
+                if (s[0] != '\0') add_history(s);
+                free(aname); free(aval);
                 segment = strtok_r(NULL, ";", &saveptr);
                 continue;
             }
@@ -211,14 +250,27 @@ int main(void) {
             int ncmds = parse_segments(s, &cmds_argv, &infiles, &outfiles);
             if (ncmds <= 0) { segment = strtok_r(NULL, ";", &saveptr); continue; }
 
-            /* add to histories */
+            /* add to histories (store original text) */
             add_history_cmd(s);
             if (s[0] != '\0') add_history(s);
+
+            /* Expand variables in argv arrays before execution */
+            for (int i = 0; i < ncmds; ++i) {
+                if (cmds_argv[i]) expand_argv_inplace(cmds_argv[i]);
+            }
 
             /* If single command and it's a builtin -> run builtin in parent (unless background) */
             if (ncmds == 1 && cmds_argv[0] && cmds_argv[0][0]) {
                 if (strcmp(cmds_argv[0][0], "jobs") == 0) {
                     print_jobs();
+                    for (int i = 0; cmds_argv[0][i]; ++i) free(cmds_argv[0][i]);
+                    free(cmds_argv[0]);
+                    free(cmds_argv); if (infiles) free(infiles); if (outfiles) free(outfiles);
+                    segment = strtok_r(NULL, ";", &saveptr);
+                    continue;
+                }
+                if (strcmp(cmds_argv[0][0], "set") == 0) {
+                    print_vars();
                     for (int i = 0; cmds_argv[0][i]; ++i) free(cmds_argv[0][i]);
                     free(cmds_argv[0]);
                     free(cmds_argv); if (infiles) free(infiles); if (outfiles) free(outfiles);
@@ -262,6 +314,7 @@ int main(void) {
     } /* main loop */
 
     free_history();
+    free_vars();    /* cleanup variable storage */
     printf("\nShell exited.\n");
     return 0;
 }

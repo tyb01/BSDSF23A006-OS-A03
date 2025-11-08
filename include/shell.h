@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <ctype.h>
 
 #define MAX_LEN 512
 #define MAXARGS 10
@@ -23,6 +24,7 @@ int handle_builtin(char **arglist);
 /* Readline */
 void init_readline(void);
 
+
 int execute_pipeline(char ***cmds_argv, char **infiles, char **outfiles, int ncmds, int background, const char *cmdline_for_job);
 
 /* Jobs API (background job manager) */
@@ -31,6 +33,13 @@ void add_job(pid_t pid, const char *cmdline);
 void remove_job(pid_t pid);
 void print_jobs(void);
 void reap_background_jobs(void);
+
+/* Variables API */
+void set_var(const char *name, const char *value);
+char *get_var(const char *name); /* returns malloc'd string (caller frees); NULL if not set */
+void print_vars(void);
+void free_vars(void);
+void expand_argv_inplace(char **argv); /* expands $VARNAME in argv array in-place */
 
 /* history config */
 #define HISTORY_SIZE 50
