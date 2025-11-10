@@ -84,7 +84,7 @@ int handle_builtin(char **arglist) {
         return 1;
     }
     if (strcmp(arglist[0], "help") == 0) {
-        printf("Built-in commands: cd, exit, help, history, jobs\n"); return 1;
+        printf("Built-in commands: cd, exit, help, history, jobs, set\n"); return 1;
     }
     if (strcmp(arglist[0], "history") == 0) { print_history(); return 1; }
     if (strcmp(arglist[0], "jobs") == 0) { printf("jobs: not implemented yet\n"); return 1; }
